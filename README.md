@@ -13,6 +13,13 @@ It is built as two [frei0r](https://frei0r.dyne.org/) plugins (`cube3d`, a filte
 `cube3d_transition`, a two-input mixer) plus Kdenlive XML descriptions. Written against
 Kdenlive 26.08.3 / MLT 7.43 (Flathub Flatpak).
 
+## Install a release
+
+Download `kdenlive-cube3d-<version>-linux-x86_64.tar.gz` from the
+[releases page](https://github.com/NostalgiaRealm/kdenlive-cube3d/releases), unpack it and run
+`./install.sh --flatpak-env` (Kdenlive from Flathub) or `./install.sh` (distribution package)
+in the unpacked folder. Nothing needs to be compiled.
+
 ## Build and install
 
 Needs a C compiler, make and python3; no MLT or frei0r development packages.
