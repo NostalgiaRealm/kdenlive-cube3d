@@ -15,8 +15,9 @@ Kdenlive 26.08.3 / MLT 7.43 (Flathub Flatpak).
 
 ## Install a release
 
-Download `kdenlive-cube3d-<version>-linux-x86_64.tar.gz` from the
-[releases page](https://github.com/NostalgiaRealm/kdenlive-cube3d/releases), unpack it and run
+Download `kdenlive-cube3d-<version>-linux-x86_64.tar.gz` from the releases page on
+[GitHub](https://github.com/NostalgiaRealm/kdenlive-cube3d/releases) or
+[GitLab](https://gitlab.com/Nostalgia_Realm/kdenlive-cube3d/-/releases), unpack it and run
 `./install.sh --flatpak-env` (Kdenlive from Flathub) or `./install.sh` (distribution package)
 in the unpacked folder. Nothing needs to be compiled.
 
