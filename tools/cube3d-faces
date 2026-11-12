@@ -1,0 +1,127 @@
+#!/usr/bin/env python3
+# SPDX-License-Identifier: GPL-2.0-or-later
+"""Makes the clips and zones of a Kdenlive project bin pickable as cube faces.
+
+    cube3d-faces PROJECT.kdenlive [FOLDER]
+    cube3d-faces            (asks for the project with a file dialog)
+
+Writes one small ".c3dface" file per bin clip and one per zone of a clip into
+FOLDER (default: "<project name> cube faces" next to the project). In the
+3D Cube effect choose such a file as File 1 ... File 6: a clip link shows the
+whole clip, a zone link plays just that zone, in a loop.
+
+Kdenlive cannot hand bin entries to an effect's file field itself (bin drags
+carry internal ids only), so this goes through the saved project file: save
+the project, run this, and run it again after adding clips or zones. Links it
+wrote earlier for clips or zones that no longer exist are removed; nothing
+else in the folder is touched.
+"""
+import json
+import re
+import shutil
+import subprocess
+import sys
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+HEADER = "cube3d-face 1"
+FILE_SERVICES = ("avformat", "avformat-novalidate", "qimage", "pixbuf")
+
+
+def ask_project():
+    for cmd in (["kdialog", "--title", "Kdenlive project for 3D Cube faces", "--getopenfilename", str(Path.home()),
+                 "*.kdenlive|Kdenlive projects"],
+                ["zenity", "--file-selection", "--title=Kdenlive project for 3D Cube faces",
+                 "--file-filter=*.kdenlive"]):
+        if shutil.which(cmd[0]):
+            r = subprocess.run(cmd, capture_output=True, text=True)
+            return r.stdout.strip() or None
+    return None
+
+
+def tell(text, gui):
+    print(text)
+    if gui:
+        for cmd in (["kdialog", "--title", "3D Cube faces", "--msgbox", text],
+                    ["zenity", "--info", "--title=3D Cube faces", "--text", text]):
+            if shutil.which(cmd[0]):
+                subprocess.run(cmd)
+                return
+
+
+def safe(name):
+    return re.sub(r'[/\\:*?"<>|\x00-\x1f]', "_", name).strip(" .") or "clip"
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("-")]
+    if any(a in ("-h", "--help") for a in sys.argv[1:]):
+        print(__doc__)
+        return 0
+    gui = not args
+    project = args[0] if args else ask_project()
+    if not project:
+        print(__doc__)
+        return 2
+    project = Path(project).resolve()
+    root = ET.parse(project).getroot()
+    base = Path(root.get("root") or project.parent)
+    prof = root.find("profile")
+    fps = int(prof.get("frame_rate_num", 25)) / int(prof.get("frame_rate_den", 1)) if prof is not None else 25.0
+    out = Path(args[1]).resolve() if len(args) > 1 else project.with_name(project.stem + " cube faces")
+
+    clips, skipped = {}, []
+    for el in root:
+        if el.tag not in ("producer", "chain"):
+            continue
+        p = {x.get("name"): (x.text or "") for x in el.findall("property")}
+        cid = p.get("kdenlive:id")
+        if not cid or (cid in clips and not p.get("kdenlive:clipzones")):
+            continue
+        service = p.get("mlt_service", "")
+        res = p.get("kdenlive:originalurl") or p.get("resource", "")
+        name = p.get("kdenlive:clipname") or Path(res).stem or f"clip {cid}"
+        if service in FILE_SERVICES and res:
+            target = str(res if Path(res).is_absolute() else (base / res))
+        elif service == "color" and res:
+            target = "color:" + res
+        else:
+            skipped.append(name)
+            continue
+        try:
+            zones = json.loads(p.get("kdenlive:clipzones") or "[]")
+        except ValueError:
+            zones = []
+        clips[cid] = (name, target, zones)
+
+    out.mkdir(parents=True, exist_ok=True)
+    wanted = {}
+    for name, target, zones in clips.values():
+        wanted[safe(name) + ".c3dface"] = f"{HEADER}\nfile={target}\n"
+        for z in zones:
+            zin, zout = int(z.get("in", 0)), int(z.get("out", 0))
+            if zout <= zin:
+                continue
+            fname = safe(f"{name} - {z.get('name') or 'zone'}") + ".c3dface"
+            wanted[fname] = f"{HEADER}\nfile={target}\nin={zin / fps:.5f}\nout={(zout + 1) / fps:.5f}\n"
+    for f in out.glob("*.c3dface"):  # drop links of ours that are stale
+        try:
+            ours = f.read_text(encoding="utf-8", errors="replace").startswith(HEADER)
+        except OSError:
+            ours = False
+        if ours and f.name not in wanted:
+            f.unlink()
+    for fname, text in wanted.items():
+        (out / fname).write_text(text, encoding="utf-8")
+
+    zones_n = sum(1 for t in wanted.values() if "\nin=" in t)
+    msg = (f"{len(wanted) - zones_n} clips and {zones_n} zones are ready in\n{out}\n\n"
+           "In the 3D Cube effect pick one of these files as File 1 ... File 6.")
+    if skipped:
+        msg += "\n\nNot usable as a face (titles, sequences, generators): " + ", ".join(sorted(set(skipped)))
+    tell(msg, gui)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
