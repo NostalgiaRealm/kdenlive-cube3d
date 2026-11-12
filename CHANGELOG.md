@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.1 – 2026-11-12
+
+- README: the release instructions link to the releases on both GitHub and GitLab.
+- No change to the plugins, the Kdenlive descriptions or the scripts.
+
 ## 1.0.0 – 2026-11-12
 
 First release.
